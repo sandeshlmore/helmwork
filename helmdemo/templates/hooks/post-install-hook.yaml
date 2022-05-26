@@ -1,0 +1,16 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: post-install-job
+  annotations:
+    "helm.sh/hook": "post-install"
+spec:
+  template:
+    metadata:
+      name: post-install-job
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: pre-install-container
+        image: busybox
+        command: ['sh', '-c', 'echo I am done with cleanup!' ]

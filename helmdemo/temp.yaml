@@ -1,0 +1,170 @@
+NAME: r1
+LAST DEPLOYED: Thu May 26 16:17:39 2022
+NAMESPACE: default
+STATUS: pending-install
+REVISION: 1
+HOOKS:
+---
+# Source: helmdemo/templates/tests/test-connection.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "r1-helmdemo-test-connection"
+  labels:
+    helm.sh/chart: helmdemo-0.1.0
+    app.kubernetes.io/name: helmdemo
+    app.kubernetes.io/instance: r1
+    app.kubernetes.io/version: "1.16.0"
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    "helm.sh/hook": test
+spec:
+  containers:
+    - name: wget
+      image: busybox
+      command: ['wget']
+      args: ['r1-helmdemo:80']
+  restartPolicy: Never
+---
+# Source: helmdemo/templates/tests/test-service.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "r1-helmdemo-test-connection"
+  labels:
+    helm.sh/chart: helmdemo-0.1.0
+    app.kubernetes.io/name: helmdemo
+    app.kubernetes.io/instance: r1
+    app.kubernetes.io/version: "1.16.0"
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    "helm.sh/hook": test
+spec:
+  containers:
+    - name: test
+      image: busybox
+      command: ['nslookup']
+      args: ['r1-nginx-svc:80']
+  restartPolicy: Never
+---
+# Source: helmdemo/templates/hooks/post-install-hook.yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: "r1"
+  annotations:
+    "helm.sh/hook": "post-install"
+spec:
+  containers:
+  - name: pre-install-container
+    image: busybox
+    command: ['sh', '-c', 'echo I am done with cleanup!' ]
+---
+# Source: helmdemo/templates/hooks/pre-install-hook.yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: "r1"
+  annotations:
+    "helm.sh/hook": "pre-install"
+spec:
+  containers:
+  - name: pre-install-container
+    image: busybox
+    command: ['sh', '-c', 'echo I am performing prerequisite tasks!' ]
+MANIFEST:
+---
+# Source: helmdemo/templates/nginx-deployment/nginx-configmap.yaml
+apiVersion: v1
+data:
+  index.html: |
+    <!DOCTYPE html>
+    <html>
+    <head>
+    <title>Time to celebrate!</title>
+    <style>
+    html { color-scheme:light dark; }
+    body { width: 35em; margin: 0 auto; font-family: Tahoma, Verdana, Arial, sans-serif; background-color: cyan; }
+    </style>
+    </head>
+    <body>
+    <h1>Time to celebrate!</h1>
+    <h2>You have successfully completed Helm Module!!!!</h2>
+    </body>
+    </html>
+kind: ConfigMap
+metadata:
+  name: r1-nginx-cm
+  labels:
+    app.kubernetes.io/name: nginx-app
+    app.kubernetes.io/instance: nginx
+---
+# Source: helmdemo/templates/nginx-deployment/nginx-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: r1-nginx-svc
+spec:
+  type: "NodePort"
+  ports:
+    - port: 80
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    app.kubernetes.io/name: nginx-app
+    app.kubernetes.io/instance: nginx
+---
+# Source: helmdemo/templates/nginx-deployment/nginx-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: r1-nginx-deployment
+  labels:
+    app.kubernetes.io/name: nginx-app
+    app.kubernetes.io/instance: nginx
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nginx-app
+      app.kubernetes.io/instance: nginx
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: nginx-app
+        app.kubernetes.io/instance: nginx
+    spec:
+      serviceAccountName: "nginx-sa"
+      volumes:
+      - name: nginx-volume
+        configMap:
+          name: nginx-cm
+          items:
+          - key: index.html
+            path: index.html
+      containers:
+        - name: testchart
+          image: "nginx:1.16.0"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+          volumeMounts:
+          - name: nginx-volume
+            mountPath: /usr/share/nginx/html
+
+NOTES:
+1. Get the application URL by running these commands:
+  export NODE_PORT=$(kubectl get --namespace default -o jsonpath="{.spec.ports[0].nodePort}" services r1-helmdemo)
+  export NODE_IP=$(kubectl get nodes --namespace default -o jsonpath="{.items[0].status.addresses[0].address}")
+  echo http://$NODE_IP:$NODE_PORT
